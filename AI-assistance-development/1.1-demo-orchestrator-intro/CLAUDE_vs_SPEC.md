@@ -1,0 +1,3 @@
+CLAUDE.md: This is your Project Constitution. It is automatically read at the start of every session and should contain permanent project context: tech stack, coding standards, build commands, and architectural rules. Think of it as "How we work here."
+
+SPEC.md (or similar): This is your Feature Blueprint. It contains the specific requirements, UI/UX details, and logic for a single task or new feature. Think of it as "What we are building right now."
