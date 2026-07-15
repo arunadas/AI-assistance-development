@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Animal Herd Simulation</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #0d0233; }
+    canvas { display: block; }
+
+    #ui {
+      position: fixed; top: 20px; left: 20px;
+      color: #fff; font-family: Arial, sans-serif; font-size: 14px;
+      background: rgba(0,0,0,0.55); padding: 14px 20px; border-radius: 10px;
+    }
+    #ui .title { font-size: 15px; font-weight: bold; margin-bottom: 10px; color: #ffcc88; }
+    #ui label { display: block; margin-bottom: 6px; }
+    #ui input[type=range] { width: 180px; accent-color: #ff8c00; cursor: pointer; }
+
+    #stats {
+      position: fixed; top: 20px; right: 20px;
+      color: #ffcc88; font-family: 'Courier New', monospace; font-size: 12px;
+      background: rgba(0,0,0,0.55); padding: 10px 14px; border-radius: 8px;
+    }
+    #stats div { margin-bottom: 3px; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div class="title">Animal Herd Simulation</div>
+    <label>Animals: <strong id="countDisplay">20</strong></label>
+    <input type="range" id="slider" min="1" max="50" value="20">
+  </div>
+  <div id="stats">
+    <div>FPS: <span id="fps">60</span></div>
+    <div>Particles: <span id="pcount">0</span></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+  (function () {
+    'use strict';
+
+    // ── RENDERER ────────────────────────────────────────────────────────────
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    document.body.appendChild(renderer.domElement);
+
+    // ── SCENE ───────────────────────────────────────────────────────────────
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0xd07030, 110, 290);
+
+    // ── CAMERA ──────────────────────────────────────────────────────────────
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 500);
+    camera.position.set(0, 36, 62);
+
+    // ── SKY ─────────────────────────────────────────────────────────────────
+    const skyMat = new THREE.ShaderMaterial({
+      vertexShader: `
+        varying float vY;
+        void main() {
+          vY = normalize(position).y;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying float vY;
+        void main() {
+          vec3 orange = vec3(1.0,  0.28, 0.04);
+          vec3 salmon = vec3(0.95, 0.50, 0.38);
+          vec3 purple = vec3(0.62, 0.25, 0.60);
+          vec3 navy   = vec3(0.07, 0.03, 0.20);
+          vec3 col;
+          float h = clamp(vY, -1.0, 1.0);
+          if (h < 0.0) {
+            col = mix(orange, salmon, clamp(-h * 3.0, 0.0, 1.0));
+          } else if (h < 0.18) {
+            col = mix(orange, salmon, h / 0.18);
+          } else if (h < 0.45) {
+            col = mix(salmon, purple, (h - 0.18) / 0.27);
+          } else {
+            col = mix(purple, navy, (h - 0.45) / 0.55);
+          }
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+      side: THREE.BackSide,
+      depthWrite: false,
+    });
+    scene.add(new THREE.Mesh(new THREE.SphereGeometry(450, 32, 16), skyMat));
+
+    // ── TERRAIN ─────────────────────────────────────────────────────────────
+    function terrainY(x, z) {
+      return  Math.sin(x * 0.050 + 1.2) * 2.8
+            + Math.sin(z * 0.040 - 0.8) * 2.2
+            + Math.sin((x + z) * 0.080)  * 1.4
+            + Math.cos(x * 0.060 - z * 0.070 + 2.1) * 0.9
+            + Math.sin(x * 0.020 - z * 0.015) * 1.5;
+    }
+
+    const TSIZE = 320, TSEGS = 80;
+    const terrainGeo = new THREE.PlaneGeometry(TSIZE, TSIZE, TSEGS, TSEGS);
+    terrainGeo.rotateX(-Math.PI / 2);
+    const tPos = terrainGeo.attributes.position;
+    for (let i = 0; i < tPos.count; i++) {
+      tPos.setY(i, terrainY(tPos.getX(i), tPos.getZ(i)));
+    }
+    terrainGeo.computeVertexNormals();
+
+    const terrainMat = new THREE.MeshLambertMaterial({ color: 0xbfa060 });
+    const terrain = new THREE.Mesh(terrainGeo, terrainMat);
+    terrain.receiveShadow = true;
+    scene.add(terrain);
+
+    // Scattered rocks for depth
+    const rockMat = new THREE.MeshLambertMaterial({ color: 0x887755 });
+    for (let r = 0; r < 40; r++) {
+      const rx = (Math.random() - 0.5) * 260;
+      const rz = (Math.random() - 0.5) * 260;
+      const s  = 0.3 + Math.random() * 1.2;
+      const rock = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(s, 0),
+        rockMat
+      );
+      rock.position.set(rx, terrainY(rx, rz) + s * 0.4, rz);
+      rock.rotation.set(Math.random(), Math.random(), Math.random());
+      rock.castShadow = true;
+      rock.receiveShadow = true;
+      scene.add(rock);
+    }
+
+    // ── LIGHTING ────────────────────────────────────────────────────────────
+    scene.add(new THREE.AmbientLight(0xff9966, 0.55));
+    scene.add(new THREE.HemisphereLight(0xff8800, 0xc2a45a, 0.4));
+
+    const sun = new THREE.DirectionalLight(0xffaa60, 1.9);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left   = -100;
+    sun.shadow.camera.right  =  100;
+    sun.shadow.camera.top    =  100;
+    sun.shadow.camera.bottom = -100;
+    sun.shadow.camera.near   = 1;
+    sun.shadow.camera.far    = 220;
+    sun.shadow.bias          = -0.001;
+    scene.add(sun);
+    scene.add(sun.target);
+
+    // ── ANIMALS ─────────────────────────────────────────────────────────────
+    const matBody  = new THREE.MeshLambertMaterial({ color: 0x8b6620 });
+    const matLight = new THREE.MeshLambertMaterial({ color: 0xd4a040 });
+    const matDark  = new THREE.MeshLambertMaterial({ color: 0x4a3210 });
+
+    function addMesh(group, geo, mat, px, py, pz, rx, ry, rz) {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(px, py, pz);
+      if (rx !== undefined) m.rotation.set(rx, ry || 0, rz || 0);
+      m.castShadow = true;
+      group.add(m);
+      return m;
+    }
+
+    function createAnimal() {
+      const g = new THREE.Group();
+      // [0] body
+      addMesh(g, new THREE.BoxGeometry(1.6, 0.75, 0.65), matBody, 0, 0.9, 0);
+      // [1] head
+      addMesh(g, new THREE.BoxGeometry(0.5, 0.42, 0.38), matLight, 0.88, 1.2, 0, 0.15, 0, 0);
+      // [2] neck
+      addMesh(g, new THREE.CylinderGeometry(0.12, 0.17, 0.42, 5), matBody, 0.6, 1.0, 0, 0, 0, -0.55);
+      // [3-6] legs (front-right, front-left, rear-right, rear-left)
+      const legGeo = new THREE.CylinderGeometry(0.07, 0.055, 0.70, 5);
+      addMesh(g, legGeo, matDark,  0.50, 0.38,  0.22);
+      addMesh(g, legGeo, matDark,  0.50, 0.38, -0.22);
+      addMesh(g, legGeo, matDark, -0.50, 0.38,  0.22);
+      addMesh(g, legGeo, matDark, -0.50, 0.38, -0.22);
+      // [7] tail
+      addMesh(g, new THREE.ConeGeometry(0.09, 0.35, 4), matLight, -0.90, 0.95, 0, 0, 0, Math.PI / 2);
+      // [8-9] antlers
+      const antGeo = new THREE.CylinderGeometry(0.02, 0.03, 0.45, 3);
+      addMesh(g, antGeo, matDark, 0.80, 1.57,  0.10, 0.3, 0,  0.4);
+      addMesh(g, antGeo, matDark, 0.80, 1.57, -0.10, 0.3, 0, -0.4);
+      return g;
+    }
+
+    const MAX_ANIMALS = 50;
+    const animalMeshes = [];
+    const animalStates = [];
+
+    for (let i = 0; i < MAX_ANIMALS; i++) {
+      const mesh = createAnimal();
+      mesh.visible = false;
+      scene.add(mesh);
+      animalMeshes.push(mesh);
+
+      const angle = Math.random() * Math.PI * 2;
+      animalStates.push({
+        x: (Math.random() - 0.5) * 50,
+        z: (Math.random() - 0.5) * 50,
+        angle,
+        wanderAngle: angle,
+        speed: 0.09 + Math.random() * 0.04,
+        legPhase: Math.random() * Math.PI * 2,
+      });
+    }
+
+    let animalCount = 20;
+
+    function setAnimalCount(n) {
+      animalCount = Math.max(1, Math.min(MAX_ANIMALS, n));
+      for (let i = 0; i < MAX_ANIMALS; i++) {
+        animalMeshes[i].visible = i < animalCount;
+      }
+    }
+    setAnimalCount(20);
+
+    // ── DUST PARTICLES ──────────────────────────────────────────────────────
+    const MAX_PARTS  = 1000;
+    const pPos   = new Float32Array(MAX_PARTS * 3);
+    const pVel   = new Float32Array(MAX_PARTS * 3);
+    const pLife  = new Float32Array(MAX_PARTS);
+    const pAlpha = new Float32Array(MAX_PARTS);
+    let pHead = 0;
+    let activeParticles = 0;
+
+    const partGeo = new THREE.BufferGeometry();
+    partGeo.setAttribute('position', new THREE.BufferAttribute(pPos,   3));
+    partGeo.setAttribute('alpha',    new THREE.BufferAttribute(pAlpha, 1));
+
+    const partMat = new THREE.ShaderMaterial({
+      uniforms: {},
+      vertexShader: `
+        attribute float alpha;
+        varying float vAlpha;
+        void main() {
+          vAlpha = alpha;
+          vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = clamp(180.0 / -mvPos.z, 2.0, 16.0);
+          gl_Position  = projectionMatrix * mvPos;
+        }
+      `,
+      fragmentShader: `
+        varying float vAlpha;
+        void main() {
+          float d = length(gl_PointCoord - 0.5);
+          if (d > 0.5) discard;
+          float a = vAlpha * smoothstep(0.5, 0.1, d);
+          gl_FragColor = vec4(0.88, 0.73, 0.46, a);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.NormalBlending,
+    });
+
+    const particlePoints = new THREE.Points(partGeo, partMat);
+    scene.add(particlePoints);
+
+    function emitDust(x, y, z) {
+      const i = pHead % MAX_PARTS;
+      pHead++;
+      pPos[i*3]   = x + (Math.random() - 0.5) * 0.7;
+      pPos[i*3+1] = y;
+      pPos[i*3+2] = z + (Math.random() - 0.5) * 0.7;
+      pVel[i*3]   = (Math.random() - 0.5) * 0.024;
+      pVel[i*3+1] = Math.random() * 0.038 + 0.008;
+      pVel[i*3+2] = (Math.random() - 0.5) * 0.024;
+      pLife[i]    = 1.0;
+    }
+
+    // ── HERD BEHAVIOUR ──────────────────────────────────────────────────────
+    const BOUND = 110;
+
+    function updateHerd() {
+      let cx = 0, cz = 0;
+      for (let i = 0; i < animalCount; i++) {
+        cx += animalStates[i].x;
+        cz += animalStates[i].z;
+      }
+      cx /= animalCount;
+      cz /= animalCount;
+
+      for (let i = 0; i < animalCount; i++) {
+        const s = animalStates[i];
+
+        // Desired direction (sum of steering forces)
+        let fx = 0, fz = 0;
+
+        // Cohesion toward herd centre
+        const dcx = cx - s.x, dcz = cz - s.z;
+        const dc  = Math.sqrt(dcx * dcx + dcz * dcz) || 1;
+        fx += (dcx / dc) * 0.45;
+        fz += (dcz / dc) * 0.45;
+
+        // Separation from nearby neighbours
+        for (let j = 0; j < animalCount; j++) {
+          if (j === i) continue;
+          const dx = s.x - animalStates[j].x;
+          const dz = s.z - animalStates[j].z;
+          const d2 = dx * dx + dz * dz;
+          if (d2 < 25 && d2 > 0.01) {
+            const d = Math.sqrt(d2);
+            fx += (dx / d) * (5 / d) * 0.65;
+            fz += (dz / d) * (5 / d) * 0.65;
+          }
+        }
+
+        // Wander — slow random angle drift
+        s.wanderAngle += (Math.random() - 0.5) * 0.38;
+        fx += Math.cos(s.wanderAngle) * 0.28;
+        fz += Math.sin(s.wanderAngle) * 0.28;
+
+        // Hard boundary push-back
+        if (s.x >  BOUND) fx -= 2.5;
+        if (s.x < -BOUND) fx += 2.5;
+        if (s.z >  BOUND) fz -= 2.5;
+        if (s.z < -BOUND) fz += 2.5;
+
+        // Smoothly turn toward desired angle
+        const desired = Math.atan2(fx, fz);
+        let diff = desired - s.angle;
+        while (diff >  Math.PI) diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+        s.angle += Math.max(-0.075, Math.min(0.075, diff));
+
+        // Advance position at constant speed
+        s.x += Math.sin(s.angle) * s.speed;
+        s.z += Math.cos(s.angle) * s.speed;
+
+        const y = terrainY(s.x, s.z);
+        const mesh = animalMeshes[i];
+        mesh.position.set(s.x, y, s.z);
+        mesh.rotation.y = s.angle;
+
+        // Trot leg animation (diagonal pairs)
+        s.legPhase += s.speed * 18;
+        const swing = Math.sin(s.legPhase) * 0.38;
+        mesh.children[3].rotation.x =  swing;  // front-right
+        mesh.children[4].rotation.x = -swing;  // front-left
+        mesh.children[5].rotation.x = -swing;  // rear-right
+        mesh.children[6].rotation.x =  swing;  // rear-left
+
+        // Emit dust
+        if (Math.random() < 0.32) {
+          emitDust(s.x, y + 0.05, s.z);
+        }
+      }
+
+      return { cx, cz };
+    }
+
+    function updateParticles() {
+      activeParticles = 0;
+      for (let i = 0; i < MAX_PARTS; i++) {
+        if (pLife[i] > 0) {
+          pLife[i]    -= 0.012;
+          pPos[i*3]   += pVel[i*3];
+          pPos[i*3+1] += pVel[i*3+1];
+          pPos[i*3+2] += pVel[i*3+2];
+          pVel[i*3+1] *= 0.97;
+          pAlpha[i]    = Math.max(0, pLife[i]);
+          activeParticles++;
+        } else {
+          pAlpha[i] = 0;
+        }
+      }
+      partGeo.attributes.position.needsUpdate = true;
+      partGeo.attributes.alpha.needsUpdate    = true;
+    }
+
+    // ── CAMERA STATE ────────────────────────────────────────────────────────
+    const camTarget  = new THREE.Vector3(0, 3, 0);
+    const camDesired = new THREE.Vector3(0, 36, 62);
+
+    // ── FPS COUNTER ─────────────────────────────────────────────────────────
+    const fpsEl    = document.getElementById('fps');
+    const pcountEl = document.getElementById('pcount');
+    let prevTime = performance.now();
+    let frameCount = 0, fpsTimer = 0;
+
+    // ── ANIMATION LOOP ──────────────────────────────────────────────────────
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const now = performance.now();
+      const dt  = Math.min((now - prevTime) / 1000, 0.05);
+      prevTime  = now;
+
+      frameCount++;
+      fpsTimer += dt;
+      if (fpsTimer >= 0.5) {
+        fpsEl.textContent    = Math.round(frameCount / fpsTimer);
+        pcountEl.textContent = activeParticles;
+        frameCount = 0;
+        fpsTimer   = 0;
+      }
+
+      const { cx, cz } = updateHerd();
+      updateParticles();
+
+      // Move sun to always illuminate the herd
+      sun.position.set(cx - 90, 65, cz - 65);
+      sun.target.position.set(cx, 0, cz);
+      sun.target.updateMatrixWorld();
+
+      // Smooth camera follow
+      const hy = terrainY(cx, cz);
+      camDesired.set(cx, hy + 36, cz + 62);
+      camera.position.lerp(camDesired, 0.03);
+      camTarget.set(cx, hy + 3, cz);
+      camera.lookAt(camTarget);
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    // ── UI ──────────────────────────────────────────────────────────────────
+    const slider       = document.getElementById('slider');
+    const countDisplay = document.getElementById('countDisplay');
+
+    slider.addEventListener('input', (e) => {
+      const n = parseInt(e.target.value);
+      countDisplay.textContent = n;
+      setAnimalCount(n);
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+  })();
+  </script>
+</body>
+</html>

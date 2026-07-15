@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Traffic Analytics Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --surface-1:      #1a1a19;
+    --surface-2:      #232322;
+    --page-plane:     #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255, 255, 255, 0.10);
+
+    --series-1: #3987e5; /* blue    - line / sequential */
+    --series-2: #199e70; /* aqua    - traffic source: Organic */
+    --series-3: #c98500; /* yellow  - traffic source: Direct */
+    --series-4: #9085e9; /* violet  - traffic source: Social */
+    --series-5: #d95926; /* orange  - traffic source: Referral */
+
+    --good: #0ca30c;
+    --critical: #d03b3b;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--page-plane);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  header {
+    max-width: 1400px;
+    margin: 0 auto 24px;
+  }
+
+  header h1 {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+
+  header p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+  }
+
+  .dashboard {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: grid;
+    gap: 16px;
+  }
+
+  /* Stat tiles row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .stat-tile .label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 8px;
+  }
+
+  .stat-tile .value {
+    font-size: 32px;
+    font-weight: 600;
+    font-variant-numeric: proportional-nums;
+    line-height: 1.1;
+    margin: 0 0 6px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-tile .delta {
+    font-size: 13px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .delta.up { color: var(--good); }
+  .delta.down { color: var(--critical); }
+
+  /* Charts grid */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+  }
+
+  .charts-grid .card.wide {
+    grid-column: 1 / -1;
+  }
+
+  .card h2 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+
+  .card .subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 0 0 16px;
+  }
+
+  .chart-wrap {
+    position: relative;
+    height: 280px;
+  }
+
+  .chart-wrap.short {
+    height: 240px;
+  }
+
+  .legend-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 12px;
+    justify-content: center;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .legend-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  footer {
+    max-width: 1400px;
+    margin: 24px auto 0;
+    color: var(--text-muted);
+    font-size: 12px;
+    text-align: center;
+  }
+
+  @media (max-width: 900px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .charts-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 520px) {
+    .stats-row { grid-template-columns: 1fr; }
+    body { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Traffic Analytics</h1>
+  <p>Live overview of site visitors, top pages, and acquisition sources</p>
+</header>
+
+<div class="dashboard">
+
+  <!-- Real-time stat tiles -->
+  <div class="stats-row">
+    <div class="card stat-tile">
+      <p class="label">Current visitors</p>
+      <p class="value" id="stat-current-visitors">0</p>
+      <span class="delta up" id="stat-current-visitors-delta"></span>
+    </div>
+    <div class="card stat-tile">
+      <p class="label">Pageviews today</p>
+      <p class="value" id="stat-pageviews">0</p>
+      <span class="delta up" id="stat-pageviews-delta"></span>
+    </div>
+    <div class="card stat-tile">
+      <p class="label">Bounce rate</p>
+      <p class="value" id="stat-bounce-rate">0%</p>
+      <span class="delta down" id="stat-bounce-rate-delta"></span>
+    </div>
+    <div class="card stat-tile">
+      <p class="label">Avg session duration</p>
+      <p class="value" id="stat-session-duration">0:00</p>
+      <span class="delta up" id="stat-session-duration-delta"></span>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <div class="card wide">
+      <h2>Daily visitors</h2>
+      <p class="subtitle">Last 30 days</p>
+      <div class="chart-wrap">
+        <canvas id="visitorsChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Top pages</h2>
+      <p class="subtitle">By pageviews, last 30 days</p>
+      <div class="chart-wrap short">
+        <canvas id="pagesChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Traffic sources</h2>
+      <p class="subtitle">Share of total visits</p>
+      <div class="chart-wrap short">
+        <canvas id="sourcesChart"></canvas>
+      </div>
+      <div class="legend-row" id="sourcesLegend"></div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  Mock data · updates every 3 seconds to simulate real-time traffic
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var css = getComputedStyle(document.documentElement);
+  var color = function (name) { return css.getPropertyValue(name).trim(); };
+
+  var palette = {
+    surface1: color('--surface-1'),
+    textPrimary: color('--text-primary'),
+    textSecondary: color('--text-secondary'),
+    textMuted: color('--text-muted'),
+    gridline: color('--gridline'),
+    baseline: color('--baseline'),
+    series1: color('--series-1'),
+    series2: color('--series-2'),
+    series3: color('--series-3'),
+    series4: color('--series-4'),
+    series5: color('--series-5')
+  };
+
+  function hexToRgba(hex, alpha) {
+    var h = hex.replace('#', '');
+    var r = parseInt(h.substring(0, 2), 16);
+    var g = parseInt(h.substring(2, 4), 16);
+    var b = parseInt(h.substring(4, 6), 16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+  }
+
+  // ---------- Mock data generation ----------
+
+  function seededRandom(seed) {
+    var s = seed;
+    return function () {
+      s = (s * 9301 + 49297) % 233280;
+      return s / 233280;
+    };
+  }
+
+  var rand = seededRandom(42);
+
+  function generateDailyVisitors(days) {
+    var data = [];
+    var labels = [];
+    var base = 3200;
+    var today = new Date();
+    for (var i = days - 1; i >= 0; i--) {
+      var d = new Date(today);
+      d.setDate(d.getDate() - i);
+      labels.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+
+      var dayOfWeek = d.getDay();
+      var weekendDip = (dayOfWeek === 0 || dayOfWeek === 6) ? 0.75 : 1;
+      var trendGrowth = 1 + ((days - i) / days) * 0.35;
+      var noise = 0.85 + rand() * 0.3;
+
+      var visitors = Math.round(base * weekendDip * trendGrowth * noise);
+      data.push(visitors);
+    }
+    return { labels: labels, data: data };
+  }
+
+  var topPages = [
+    { page: '/home', views: 18420 },
+    { page: '/pricing', views: 12930 },
+    { page: '/blog/getting-started', views: 9870 },
+    { page: '/docs/api', views: 8340 },
+    { page: '/features', views: 6710 },
+    { page: '/blog/release-notes', views: 4980 },
+    { page: '/signup', views: 3860 }
+  ].sort(function (a, b) { return b.views - a.views; });
+
+  var trafficSources = [
+    { source: 'Organic', pct: 42, color: palette.series2 },
+    { source: 'Direct', pct: 27, color: palette.series3 },
+    { source: 'Social', pct: 19, color: palette.series4 },
+    { source: 'Referral', pct: 12, color: palette.series5 }
+  ];
+
+  var visitorsSeries = generateDailyVisitors(30);
+
+  // ---------- Chart.js global defaults ----------
+
+  Chart.defaults.color = palette.textSecondary;
+  Chart.defaults.font.family = "system-ui, -apple-system, 'Segoe UI', sans-serif";
+
+  var tooltipBase = {
+    backgroundColor: palette.surface1,
+    borderColor: palette.baseline,
+    borderWidth: 1,
+    titleColor: palette.textSecondary,
+    bodyColor: palette.textPrimary,
+    bodyFont: { weight: '600' },
+    padding: 10,
+    cornerRadius: 8,
+    displayColors: true,
+    boxPadding: 4
+  };
+
+  // ---------- Line chart: daily visitors ----------
+
+  var visitorsCtx = document.getElementById('visitorsChart').getContext('2d');
+  var visitorsGradient = visitorsCtx.createLinearGradient(0, 0, 0, 280);
+  visitorsGradient.addColorStop(0, hexToRgba(palette.series1, 0.22));
+  visitorsGradient.addColorStop(1, hexToRgba(palette.series1, 0.0));
+
+  var visitorsChart = new Chart(visitorsCtx, {
+    type: 'line',
+    data: {
+      labels: visitorsSeries.labels,
+      datasets: [{
+        label: 'Visitors',
+        data: visitorsSeries.data,
+        borderColor: palette.series1,
+        backgroundColor: visitorsGradient,
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: palette.series1,
+        pointHoverBorderColor: palette.surface1,
+        pointHoverBorderWidth: 2,
+        fill: true,
+        tension: 0.35
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: Object.assign({}, tooltipBase, {
+          callbacks: {
+            label: function (ctx) {
+              return ' ' + ctx.parsed.y.toLocaleString() + ' visitors';
+            }
+          }
+        })
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: palette.textMuted, maxTicksLimit: 8 },
+          border: { color: palette.baseline }
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: palette.gridline },
+          ticks: {
+            color: palette.textMuted,
+            callback: function (v) { return v.toLocaleString(); }
+          },
+          border: { display: false }
+        }
+      }
+    }
+  });
+
+  // ---------- Bar chart: top pages ----------
+
+  var pagesChart = new Chart(document.getElementById('pagesChart'), {
+    type: 'bar',
+    data: {
+      labels: topPages.map(function (p) { return p.page; }),
+      datasets: [{
+        label: 'Pageviews',
+        data: topPages.map(function (p) { return p.views; }),
+        backgroundColor: palette.series1,
+        borderRadius: { topLeft: 0, topRight: 4, bottomLeft: 0, bottomRight: 4 },
+        borderSkipped: false,
+        maxBarThickness: 20
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: Object.assign({}, tooltipBase, {
+          callbacks: {
+            label: function (ctx) {
+              return ' ' + ctx.parsed.x.toLocaleString() + ' views';
+            }
+          }
+        })
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          grid: { color: palette.gridline },
+          ticks: {
+            color: palette.textMuted,
+            callback: function (v) { return v >= 1000 ? (v / 1000) + 'k' : v; }
+          },
+          border: { display: false }
+        },
+        y: {
+          grid: { display: false },
+          ticks: { color: palette.textSecondary },
+          border: { color: palette.baseline }
+        }
+      }
+    }
+  });
+
+  // ---------- Donut chart: traffic sources ----------
+
+  var sourcesChart = new Chart(document.getElementById('sourcesChart'), {
+    type: 'doughnut',
+    data: {
+      labels: trafficSources.map(function (s) { return s.source; }),
+      datasets: [{
+        data: trafficSources.map(function (s) { return s.pct; }),
+        backgroundColor: trafficSources.map(function (s) { return s.color; }),
+        borderColor: palette.surface1,
+        borderWidth: 2,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '68%',
+      plugins: {
+        legend: { display: false },
+        tooltip: Object.assign({}, tooltipBase, {
+          callbacks: {
+            label: function (ctx) {
+              return ' ' + ctx.label + ': ' + ctx.parsed + '%';
+            }
+          }
+        })
+      }
+    }
+  });
+
+  // Custom legend for donut (dependable identity channel)
+  var legendEl = document.getElementById('sourcesLegend');
+  trafficSources.forEach(function (s) {
+    var item = document.createElement('div');
+    item.className = 'legend-item';
+
+    var swatch = document.createElement('span');
+    swatch.className = 'legend-swatch';
+    swatch.style.backgroundColor = s.color;
+    item.appendChild(swatch);
+
+    var text = document.createElement('span');
+    text.textContent = s.source + ' · ' + s.pct + '%';
+    item.appendChild(text);
+
+    legendEl.appendChild(item);
+  });
+
+  // ---------- Real-time stat counters ----------
+
+  var stats = {
+    currentVisitors: 214,
+    pageviews: 48213,
+    bounceRate: 38.4,
+    sessionDurationSeconds: 154
+  };
+
+  function animateValue(el, from, to, formatFn, duration) {
+    var start = null;
+    function step(ts) {
+      if (start === null) start = ts;
+      var progress = Math.min((ts - start) / duration, 1);
+      var eased = 1 - Math.pow(1 - progress, 3);
+      var current = from + (to - from) * eased;
+      el.textContent = formatFn(current);
+      if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function formatDuration(totalSeconds) {
+    var s = Math.round(totalSeconds);
+    var m = Math.floor(s / 60);
+    var rem = s % 60;
+    return m + ':' + (rem < 10 ? '0' : '') + rem;
+  }
+
+  function setDelta(el, pctChange) {
+    var isUp = pctChange >= 0;
+    el.className = 'delta ' + (isUp ? 'up' : 'down');
+    el.textContent = (isUp ? '↑ ' : '↓ ') + Math.abs(pctChange).toFixed(1) + '% vs last hour';
+  }
+
+  var els = {
+    currentVisitors: document.getElementById('stat-current-visitors'),
+    currentVisitorsDelta: document.getElementById('stat-current-visitors-delta'),
+    pageviews: document.getElementById('stat-pageviews'),
+    pageviewsDelta: document.getElementById('stat-pageviews-delta'),
+    bounceRate: document.getElementById('stat-bounce-rate'),
+    bounceRateDelta: document.getElementById('stat-bounce-rate-delta'),
+    sessionDuration: document.getElementById('stat-session-duration'),
+    sessionDurationDelta: document.getElementById('stat-session-duration-delta')
+  };
+
+  function renderStats(prev, next, isInitial) {
+    var duration = isInitial ? 900 : 600;
+
+    animateValue(els.currentVisitors, prev.currentVisitors, next.currentVisitors,
+      function (v) { return Math.round(v).toLocaleString(); }, duration);
+    animateValue(els.pageviews, prev.pageviews, next.pageviews,
+      function (v) { return Math.round(v).toLocaleString(); }, duration);
+    animateValue(els.bounceRate, prev.bounceRate, next.bounceRate,
+      function (v) { return v.toFixed(1) + '%'; }, duration);
+    animateValue(els.sessionDuration, prev.sessionDurationSeconds, next.sessionDurationSeconds,
+      function (v) { return formatDuration(v); }, duration);
+
+    setDelta(els.currentVisitorsDelta, ((next.currentVisitors - prev.currentVisitors) / Math.max(prev.currentVisitors, 1)) * 100);
+    setDelta(els.pageviewsDelta, 12.4);
+    setDelta(els.bounceRateDelta, -2.1);
+    setDelta(els.sessionDurationDelta, 4.7);
+  }
+
+  renderStats(
+    { currentVisitors: 0, pageviews: 0, bounceRate: 0, sessionDurationSeconds: 0 },
+    stats,
+    true
+  );
+
+  // Simulate live updates every 3 seconds
+  setInterval(function () {
+    var prev = Object.assign({}, stats);
+
+    stats.currentVisitors = Math.max(40, Math.round(stats.currentVisitors + (rand() - 0.5) * 40));
+    stats.pageviews = stats.pageviews + Math.round(rand() * 30 + 5);
+    stats.bounceRate = Math.min(75, Math.max(15, stats.bounceRate + (rand() - 0.5) * 3));
+    stats.sessionDurationSeconds = Math.max(30, stats.sessionDurationSeconds + (rand() - 0.5) * 15);
+
+    renderStats(prev, stats, false);
+  }, 3000);
+
+})();
+</script>
+
+</body>
+</html>

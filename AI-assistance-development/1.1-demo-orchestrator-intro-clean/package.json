@@ -1,0 +1,11 @@
+{
+  "name": "orchestrator-intro-demo",
+  "version": "1.0.0",
+  "description": "Three.js animal herd simulation demo for Claude Code orchestration",
+  "scripts": {
+    "dev": "npx serve"
+  },
+  "keywords": ["three.js", "3d", "simulation", "orchestration"],
+  "author": "",
+  "license": "ISC"
+}

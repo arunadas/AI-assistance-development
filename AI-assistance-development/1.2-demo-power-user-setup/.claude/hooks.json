@@ -1,0 +1,53 @@
+{
+  "PreCommit": [
+    {
+      "matcher": "*.ts",
+      "command": "npx eslint --fix ${file} && npx prettier --write ${file}"
+    },
+    {
+      "matcher": "*.tsx",
+      "command": "npx eslint --fix ${file} && npx prettier --write ${file}"
+    },
+    {
+      "matcher": "*.js",
+      "command": "npx prettier --write ${file}"
+    },
+    {
+      "matcher": "*.json",
+      "command": "npx prettier --write ${file}"
+    },
+    {
+      "matcher": "*.md",
+      "command": "npx prettier --write ${file}"
+    }
+  ],
+  "PostFileWrite": [
+    {
+      "matcher": "*.js",
+      "command": "npx eslint --fix ${file}"
+    },
+    {
+      "matcher": "*.ts",
+      "command": "npx eslint --fix ${file}"
+    },
+    {
+      "matcher": "*.tsx",
+      "command": "npx eslint --fix ${file}"
+    },
+    {
+      "matcher": "src/**/*.test.ts",
+      "command": "npx jest --findRelatedTests ${file} --passWithNoTests"
+    },
+    {
+      "matcher": "src/**/*.test.tsx",
+      "command": "npx jest --findRelatedTests ${file} --passWithNoTests"
+    }
+  ],
+  "OnTaskComplete": [
+    {
+      "description": "Desktop notification on build completion",
+      "matcher": "build",
+      "command": "osascript -e 'display notification \"Build complete\" with title \"Claude Code\"' || notify-send 'Build complete'"
+    }
+  ]
+}
