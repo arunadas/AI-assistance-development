@@ -1,0 +1,22 @@
+{
+  "name": "skill-authoring-demo",
+  "version": "1.0.0",
+  "description": "Demo of skill authoring for Chapter 2: Agent Skills Deep Dive",
+  "main": "index.js",
+  "scripts": {
+    "compile": "tsc",
+    "before": "node -r ts-node/register examples/api-before/server.ts",
+    "after": "node -r ts-node/register examples/api-after/server.ts",
+    "test:before": "curl http://localhost:3000/api/v1/users | jq .",
+    "test:after": "curl http://localhost:3001/api/v1/users | jq ."
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.17",
+    "@types/node": "^20.4.5",
+    "typescript": "^5.1.6",
+    "ts-node": "^10.9.1"
+  }
+}
