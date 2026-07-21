@@ -1,0 +1,16 @@
+{
+  "name": "devtools-mcp-debug-app",
+  "version": "1.0.0",
+  "description": "Demo app with intentional issues for debugging with Chrome DevTools MCP",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "keywords": ["devtools", "debugging", "mcp", "performance"],
+  "author": "Claude Code",
+  "license": "MIT"
+}
