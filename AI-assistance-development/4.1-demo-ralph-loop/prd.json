@@ -1,0 +1,55 @@
+{
+  "title": "Cursor-Based Pagination Utility",
+  "description": "A generic, type-safe cursor-based pagination utility for TypeScript arrays.",
+  "stories": [
+    {
+      "id": "story-1",
+      "title": "Basic first-page pagination",
+      "description": "Given an array of items and a page size, return the first page with correct data, nextCursor, and hasMore flag.",
+      "testPattern": "returns correct data for first page",
+      "passes": true
+    },
+    {
+      "id": "story-2",
+      "title": "Cursor-based continuation",
+      "description": "Given a nextCursor from a previous page, return the correct subsequent page of items.",
+      "testPattern": "returns correct nextCursor for subsequent pages",
+      "passes": true
+    },
+    {
+      "id": "story-3",
+      "title": "Last page detection",
+      "description": "When the final page of items is returned, hasMore should be false and nextCursor should be null.",
+      "testPattern": "returns hasMore: false on last page",
+      "passes": true
+    },
+    {
+      "id": "story-4",
+      "title": "Empty dataset handling",
+      "description": "When given an empty array, return an empty result without throwing an error.",
+      "testPattern": "handles empty dataset",
+      "passes": true
+    },
+    {
+      "id": "story-5",
+      "title": "Generic type safety",
+      "description": "The paginate function should preserve TypeScript generics so callers get type-safe results.",
+      "testPattern": "is type-safe",
+      "passes": true
+    },
+    {
+      "id": "story-6",
+      "title": "Variable page sizes",
+      "description": "Pagination should work correctly with any page size (1, 2, 5, full dataset).",
+      "testPattern": "works with different page sizes",
+      "passes": true
+    },
+    {
+      "id": "story-7",
+      "title": "Cursor encoding/decoding",
+      "description": "Cursors should be base64-encoded item IDs that decode correctly for continuation.",
+      "testPattern": "cursor decodes correctly",
+      "passes": true
+    }
+  ]
+}

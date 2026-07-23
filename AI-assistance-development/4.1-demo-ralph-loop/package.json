@@ -1,0 +1,17 @@
+{
+  "name": "demo-ralph-loop",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Course 4, Chapter 4.1: The Ralph Loop — Autonomous AI agent loop using snarktank/ralph",
+  "scripts": {
+    "test": "jest",
+    "test:pagination": "jest --testPathPattern=pagination",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.6.3"
+  }
+}
