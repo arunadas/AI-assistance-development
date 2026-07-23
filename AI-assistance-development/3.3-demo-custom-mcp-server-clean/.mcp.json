@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "internal-tools": {
+      "command": "npx",
+      "args": ["tsx", "src/server.ts"]
+    }
+  }
+}

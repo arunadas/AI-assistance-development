@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "demo-mcp-server": {
+      "command": "node",
+      "args": ["dist/server.js"]
+    }
+  }
+}
